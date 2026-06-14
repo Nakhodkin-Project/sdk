@@ -94,6 +94,22 @@ func (b *Bot) Undo(chatID int64, mark int) error {
 	return errors.Join(errs...)
 }
 
+// Resend deletes the chat's current anchor message, if any, without
+// touching tracked page messages, and sends s as a new message that becomes
+// the new anchor. Use this instead of Show when other messages have been
+// sent since the anchor was last shown, so the navigation screen stays
+// pinned below them at the bottom of the chat.
+func (b *Bot) Resend(chatID int64, s Screen) error {
+	session := b.Sessions.Get(chatID)
+	if anchor := session.Anchor(); anchor.MessageID != 0 {
+		if _, err := b.Send(tgbotapi.NewDeleteMessage(chatID, anchor.MessageID)); err != nil {
+			return fmt.Errorf("tgscreen: delete anchor %d: %w", anchor.MessageID, err)
+		}
+		session.SetAnchor(tgbotapi.Message{})
+	}
+	return b.Show(chatID, s)
+}
+
 // Reset clears the chat's tracked page messages and shows s as a fresh
 // anchor (sent as a new message rather than an edit).
 func (b *Bot) Reset(chatID int64, s Screen) error {

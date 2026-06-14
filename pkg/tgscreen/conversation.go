@@ -63,7 +63,7 @@ func (c *Conversation) Advance(ctx *Context, msg *tgbotapi.Message) error {
 	}
 
 	ctx.Track(ctx.ChatID, *msg)
-	if err := ctx.Show(ctx.ChatID, confirmScreen); err != nil {
+	if err := ctx.Resend(ctx.ChatID, confirmScreen); err != nil {
 		return err
 	}
 
