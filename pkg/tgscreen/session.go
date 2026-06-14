@@ -3,7 +3,7 @@ package tgscreen
 import (
 	"sync"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // ConvState tracks progress through a multi-step Conversation.

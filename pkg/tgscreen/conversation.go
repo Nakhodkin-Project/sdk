@@ -1,6 +1,6 @@
 package tgscreen
 
-import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 // Step is one stage of a Conversation: a Prompt is shown in the chat's
 // anchor, the user's reply is collected, and a Confirm screen asks them to
@@ -64,7 +64,7 @@ func (c *Conversation) Advance(ctx *Context, msg *tgbotapi.Message) error {
 
 	// The reply has already been captured into the session, so remove it
 	// from the chat rather than leaving it cluttering the page.
-	if _, err := ctx.Send(tgbotapi.NewDeleteMessage(ctx.ChatID, msg.MessageID)); err != nil {
+	if _, err := ctx.Request(tgbotapi.NewDeleteMessage(ctx.ChatID, msg.MessageID)); err != nil {
 		return err
 	}
 

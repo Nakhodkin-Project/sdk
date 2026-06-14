@@ -1,6 +1,6 @@
 package tgscreen
 
-import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 // Screen describes a single UI view: the text and inline keyboard shown in
 // a chat's anchor message. Navigating between screens edits the anchor in

@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/matvievsky/tg-bot-sdk/pkg/tgscreen"
 )
 
@@ -91,10 +91,7 @@ func main() {
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
-	updates, err := api.GetUpdatesChan(u)
-	if err != nil {
-		log.Fatalf("updates: %s", err)
-	}
+	updates := api.GetUpdatesChan(u)
 
 	for update := range updates {
 		if err := router.Dispatch(bot, update); err != nil {

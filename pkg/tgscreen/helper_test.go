@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/matvievsky/tg-bot-sdk/pkg/tgscreen"
 )
 
@@ -43,6 +43,8 @@ func (f *fakeTelegram) RoundTrip(req *http.Request) (*http.Response, error) {
 	switch method {
 	case "deleteMessage", "answerCallbackQuery":
 		result = "true"
+	case "getMe":
+		result = `{"id":1,"is_bot":true,"first_name":"Test","username":"test_bot"}`
 	default:
 		chatID := req.PostForm.Get("chat_id")
 		msgID := req.PostForm.Get("message_id")
@@ -81,9 +83,6 @@ func (f *fakeTelegram) callsTo(method string) int {
 // exercise Bot/Router/Conversation without network access.
 func newTestBot() (*tgscreen.Bot, *fakeTelegram) {
 	fake := &fakeTelegram{}
-	api := &tgbotapi.BotAPI{
-		Token:  "TEST:TOKEN",
-		Client: &http.Client{Transport: fake},
-	}
+	api, _ := tgbotapi.NewBotAPIWithClient("TEST:TOKEN", tgbotapi.APIEndpoint, &http.Client{Transport: fake})
 	return tgscreen.New(api, nil), fake
 }

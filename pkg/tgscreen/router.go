@@ -3,7 +3,7 @@ package tgscreen
 import (
 	"fmt"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // Context carries everything a HandlerFunc needs to respond to an update.
@@ -119,7 +119,7 @@ func (r *Router) Dispatch(b *Bot, u tgbotapi.Update) error {
 	}
 
 	if u.CallbackQuery != nil {
-		if _, err := b.AnswerCallbackQuery(tgbotapi.NewCallback(u.CallbackQuery.ID, "")); err != nil {
+		if _, err := b.Request(tgbotapi.NewCallback(u.CallbackQuery.ID, "")); err != nil {
 			return fmt.Errorf("tgscreen: answer callback: %w", err)
 		}
 		if h, ok := r.callbacks[u.CallbackQuery.Data]; ok {

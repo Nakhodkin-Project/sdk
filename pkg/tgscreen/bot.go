@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // Bot wraps tgbotapi.BotAPI with screen-oriented helpers that keep a chat's
@@ -72,7 +72,7 @@ func (b *Bot) ClearPage(chatID int64) error {
 
 	var errs []error
 	for _, msg := range page {
-		if _, err := b.Send(tgbotapi.NewDeleteMessage(chatID, msg.MessageID)); err != nil {
+		if _, err := b.Request(tgbotapi.NewDeleteMessage(chatID, msg.MessageID)); err != nil {
 			errs = append(errs, fmt.Errorf("tgscreen: delete message %d: %w", msg.MessageID, err))
 		}
 	}
@@ -87,7 +87,7 @@ func (b *Bot) Undo(chatID int64, mark int) error {
 
 	var errs []error
 	for _, msg := range dropped {
-		if _, err := b.Send(tgbotapi.NewDeleteMessage(chatID, msg.MessageID)); err != nil {
+		if _, err := b.Request(tgbotapi.NewDeleteMessage(chatID, msg.MessageID)); err != nil {
 			errs = append(errs, fmt.Errorf("tgscreen: delete message %d: %w", msg.MessageID, err))
 		}
 	}
@@ -102,7 +102,7 @@ func (b *Bot) Undo(chatID int64, mark int) error {
 func (b *Bot) Resend(chatID int64, s Screen) error {
 	session := b.Sessions.Get(chatID)
 	if anchor := session.Anchor(); anchor.MessageID != 0 {
-		if _, err := b.Send(tgbotapi.NewDeleteMessage(chatID, anchor.MessageID)); err != nil {
+		if _, err := b.Request(tgbotapi.NewDeleteMessage(chatID, anchor.MessageID)); err != nil {
 			return fmt.Errorf("tgscreen: delete anchor %d: %w", anchor.MessageID, err)
 		}
 		session.SetAnchor(tgbotapi.Message{})
@@ -118,7 +118,7 @@ func (b *Bot) Reset(chatID int64, s Screen) error {
 	session := b.Sessions.Get(chatID)
 	anchor := session.Anchor()
 	if anchor.MessageID != 0 {
-		if _, err := b.Send(tgbotapi.NewDeleteMessage(chatID, anchor.MessageID)); err != nil {
+		if _, err := b.Request(tgbotapi.NewDeleteMessage(chatID, anchor.MessageID)); err != nil {
 			clearErr = errors.Join(clearErr, fmt.Errorf("tgscreen: delete anchor %d: %w", anchor.MessageID, err))
 		}
 		session.SetAnchor(tgbotapi.Message{})
@@ -143,7 +143,7 @@ func (b *Bot) Flash(chatID int64, text string, ttl time.Duration) error {
 		time.Sleep(ttl)
 		// Best-effort cleanup: the message may already be gone (e.g. the
 		// chat was cleared), so a failed delete here is not actionable.
-		_, _ = b.Send(tgbotapi.NewDeleteMessage(chatID, sent.MessageID))
+		_, _ = b.Request(tgbotapi.NewDeleteMessage(chatID, sent.MessageID))
 	}()
 	return nil
 }
