@@ -62,7 +62,12 @@ func (c *Conversation) Advance(ctx *Context, msg *tgbotapi.Message) error {
 		return nil
 	}
 
-	ctx.Track(ctx.ChatID, *msg)
+	// The reply has already been captured into the session, so remove it
+	// from the chat rather than leaving it cluttering the page.
+	if _, err := ctx.Send(tgbotapi.NewDeleteMessage(ctx.ChatID, msg.MessageID)); err != nil {
+		return err
+	}
+
 	if err := ctx.Resend(ctx.ChatID, confirmScreen); err != nil {
 		return err
 	}

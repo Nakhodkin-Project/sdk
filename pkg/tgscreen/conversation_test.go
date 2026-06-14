@@ -123,16 +123,24 @@ func TestConfirmNoUndoesOnlyCurrentStepMessages(t *testing.T) {
 	conv := &tgscreen.Conversation{
 		Steps: []tgscreen.Step{
 			{
-				Prompt:  tgscreen.Screen{Text: "first?"},
-				SaveAs:  "first",
-				Confirm: tgscreen.Screen{Text: "confirm first"},
+				Prompt: tgscreen.Screen{Text: "first?"},
+				// Tracks an extra message besides the user's reply (which is
+				// deleted once captured), to exercise Undo across steps.
+				OnInput: func(ctx *tgscreen.Context, msg *tgbotapi.Message) (tgscreen.Screen, bool, error) {
+					extra, err := ctx.Send(tgbotapi.NewMessage(ctx.ChatID, "extra1"))
+					if err != nil {
+						return tgscreen.Screen{}, false, err
+					}
+					ctx.Track(ctx.ChatID, extra)
+					return tgscreen.Screen{Text: "confirm first"}, true, nil
+				},
 			},
 			{
 				Prompt: tgscreen.Screen{Text: "second?"},
 				// Tracks an extra message besides the user's reply, to
 				// exercise Undo across more than one tracked message.
 				OnInput: func(ctx *tgscreen.Context, msg *tgbotapi.Message) (tgscreen.Screen, bool, error) {
-					extra, err := ctx.Send(tgbotapi.NewMessage(ctx.ChatID, "extra"))
+					extra, err := ctx.Send(tgbotapi.NewMessage(ctx.ChatID, "extra2"))
 					if err != nil {
 						return tgscreen.Screen{}, false, err
 					}
@@ -170,16 +178,16 @@ func TestConfirmNoUndoesOnlyCurrentStepMessages(t *testing.T) {
 	if err := router.Dispatch(bot, second); err != nil {
 		t.Fatalf("Dispatch (second): %v", err)
 	}
-	if got := bot.Sessions.Get(chatID).Page(); len(got) != 3 {
-		t.Fatalf("Page() after step 2 input = %v, want 3 tracked messages (step 1's + this step's reply + extra)", got)
+	if got := bot.Sessions.Get(chatID).Page(); len(got) != 2 {
+		t.Fatalf("Page() after step 2 input = %v, want 2 tracked messages (step 1's extra + this step's extra)", got)
 	}
 
 	deletesBefore := fake.callsTo("deleteMessage")
 	if err := router.Dispatch(bot, reject); err != nil {
 		t.Fatalf("Dispatch (reject second): %v", err)
 	}
-	if got := fake.callsTo("deleteMessage") - deletesBefore; got != 2 {
-		t.Fatalf("deleteMessage calls after reject = %d, want 2", got)
+	if got := fake.callsTo("deleteMessage") - deletesBefore; got != 1 {
+		t.Fatalf("deleteMessage calls after reject = %d, want 1", got)
 	}
 	if got := bot.Sessions.Get(chatID).Page(); len(got) != 1 {
 		t.Fatalf("Page() after reject = %v, want step 1's message to remain", got)
