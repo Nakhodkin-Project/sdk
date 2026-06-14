@@ -30,9 +30,14 @@ func (b *Bot) Show(chatID int64, s Screen) error {
 	session := b.Sessions.Get(chatID)
 	anchor := session.Anchor()
 
+	markup := s.Markup
+	if markup.InlineKeyboard == nil {
+		markup.InlineKeyboard = [][]tgbotapi.InlineKeyboardButton{}
+	}
+
 	if anchor.MessageID == 0 {
 		msg := tgbotapi.NewMessage(chatID, s.Text)
-		msg.ReplyMarkup = s.Markup
+		msg.ReplyMarkup = markup
 		msg.ParseMode = s.ParseMode
 		sent, err := b.Send(msg)
 		if err != nil {
@@ -43,7 +48,7 @@ func (b *Bot) Show(chatID int64, s Screen) error {
 	}
 
 	edit := tgbotapi.NewEditMessageText(chatID, anchor.MessageID, s.Text)
-	edit.ReplyMarkup = &s.Markup
+	edit.ReplyMarkup = &markup
 	edit.ParseMode = s.ParseMode
 	edited, err := b.Send(edit)
 	if err != nil {
