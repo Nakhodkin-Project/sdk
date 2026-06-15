@@ -25,6 +25,7 @@ type Router struct {
 	commands      map[string]HandlerFunc
 	conversations map[string]*Conversation
 	fallback      HandlerFunc
+	myChatMember  HandlerFunc
 }
 
 // NewRouter returns an empty Router.
@@ -61,6 +62,13 @@ func (r *Router) Conversation(name string, c *Conversation) *Router {
 // matches.
 func (r *Router) Fallback(h HandlerFunc) *Router {
 	r.fallback = h
+	return r
+}
+
+// MyChatMember registers h to run when the bot's membership status in a chat
+// changes (e.g. the user blocks, unblocks, or restarts the bot).
+func (r *Router) MyChatMember(h HandlerFunc) *Router {
+	r.myChatMember = h
 	return r
 }
 
@@ -101,6 +109,20 @@ func (r *Router) Start(ctx *Context, name string) error {
 // Dispatch routes u to the matching registration. Callback queries are
 // answered automatically before their handler runs.
 func (r *Router) Dispatch(b *Bot, u tgbotapi.Update) error {
+	if u.MyChatMember != nil {
+		chatID := u.MyChatMember.Chat.ID
+		ctx := &Context{
+			Bot:     b,
+			ChatID:  chatID,
+			Update:  u,
+			Session: b.Sessions.Get(chatID),
+		}
+		if r.myChatMember != nil {
+			return r.myChatMember(ctx)
+		}
+		return nil
+	}
+
 	msg := u.Message
 	if msg == nil && u.CallbackQuery != nil {
 		msg = u.CallbackQuery.Message

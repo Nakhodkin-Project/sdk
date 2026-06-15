@@ -3,6 +3,8 @@ package tgscreen
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -52,10 +54,37 @@ func (b *Bot) Show(chatID int64, s Screen) error {
 	edit.ParseMode = s.ParseMode
 	edited, err := b.Send(edit)
 	if err != nil {
+		if isNotModifiedErr(err) {
+			// The anchor already shows s exactly as requested; Telegram
+			// rejects the edit but the screen is already correct.
+			return nil
+		}
+		if isMessageNotFoundErr(err) {
+			// The anchor message no longer exists (e.g. the user cleared the
+			// chat); forget it and send s as a fresh anchor instead.
+			session.SetAnchor(tgbotapi.Message{})
+			return b.Show(chatID, s)
+		}
 		return fmt.Errorf("tgscreen: edit screen: %w", err)
 	}
 	session.SetAnchor(edited)
 	return nil
+}
+
+// isNotModifiedErr reports whether err is Telegram's "message is not
+// modified" error, returned when an edit's text and markup are identical to
+// the message's current content.
+func isNotModifiedErr(err error) bool {
+	var apiErr *tgbotapi.Error
+	return errors.As(err, &apiErr) && strings.Contains(apiErr.Message, "message is not modified")
+}
+
+// isMessageNotFoundErr reports whether err is Telegram's "message to edit
+// not found" error, returned when the anchor message has been deleted (e.g.
+// by the user clearing the chat).
+func isMessageNotFoundErr(err error) bool {
+	var apiErr *tgbotapi.Error
+	return errors.As(err, &apiErr) && strings.Contains(apiErr.Message, "message to edit not found")
 }
 
 // Track adds msg to the messages tracked as part of the chat's current
@@ -64,19 +93,19 @@ func (b *Bot) Track(chatID int64, msg tgbotapi.Message) {
 	b.Sessions.Get(chatID).AppendPage(msg)
 }
 
+// Untrack removes messageID from the messages tracked as part of the chat's
+// current screen, e.g. after deleting it directly, so a later ClearPage (or
+// Reset) doesn't try to delete it again.
+func (b *Bot) Untrack(chatID int64, messageID int) {
+	b.Sessions.Get(chatID).RemoveFromPage(messageID)
+}
+
 // ClearPage deletes every message tracked via Track for chatID. It attempts
 // to delete all of them even if some deletions fail, returning a joined
 // error for any that did.
 func (b *Bot) ClearPage(chatID int64) error {
 	page := b.Sessions.Get(chatID).TakePage()
-
-	var errs []error
-	for _, msg := range page {
-		if _, err := b.Request(tgbotapi.NewDeleteMessage(chatID, msg.MessageID)); err != nil {
-			errs = append(errs, fmt.Errorf("tgscreen: delete message %d: %w", msg.MessageID, err))
-		}
-	}
-	return errors.Join(errs...)
+	return b.deleteMessages(chatID, page)
 }
 
 // Undo deletes the page messages tracked since mark (a value previously
@@ -84,13 +113,31 @@ func (b *Bot) ClearPage(chatID int64) error {
 // disturbing messages tracked by earlier, already-confirmed steps.
 func (b *Bot) Undo(chatID int64, mark int) error {
 	dropped := b.Sessions.Get(chatID).DropPageSince(mark)
+	return b.deleteMessages(chatID, dropped)
+}
 
-	var errs []error
-	for _, msg := range dropped {
-		if _, err := b.Request(tgbotapi.NewDeleteMessage(chatID, msg.MessageID)); err != nil {
-			errs = append(errs, fmt.Errorf("tgscreen: delete message %d: %w", msg.MessageID, err))
-		}
+// deleteMessages deletes msgs concurrently, since each call is a separate
+// round trip to the Telegram API and a chat screen can track many messages.
+// It attempts to delete all of them even if some deletions fail, returning a
+// joined error for any that did.
+func (b *Bot) deleteMessages(chatID int64, msgs []tgbotapi.Message) error {
+	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		errs []error
+	)
+	for _, msg := range msgs {
+		wg.Add(1)
+		go func(messageID int) {
+			defer wg.Done()
+			if _, err := b.Request(tgbotapi.NewDeleteMessage(chatID, messageID)); err != nil {
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("tgscreen: delete message %d: %w", messageID, err))
+				mu.Unlock()
+			}
+		}(msg.MessageID)
 	}
+	wg.Wait()
 	return errors.Join(errs...)
 }
 

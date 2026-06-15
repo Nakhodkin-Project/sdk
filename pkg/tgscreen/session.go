@@ -78,6 +78,21 @@ func (s *Session) PageLen() int {
 	return len(s.page)
 }
 
+// RemoveFromPage removes the tracked page message with the given messageID,
+// if present, so a later ClearPage (or Reset) won't try to delete it again.
+// It returns true if a message was removed.
+func (s *Session) RemoveFromPage(messageID int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, msg := range s.page {
+		if msg.MessageID == messageID {
+			s.page = append(s.page[:i], s.page[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 // DropPageSince removes and returns the tracked page messages from index n
 // onward.
 func (s *Session) DropPageSince(n int) []tgbotapi.Message {

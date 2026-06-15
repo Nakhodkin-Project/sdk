@@ -8,7 +8,7 @@ import (
 	"os"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/matvievsky/tg-bot-sdk/pkg/tgscreen"
+	"github.com/Nakhodkin-Project/sdk/pkg/tgscreen"
 )
 
 const (

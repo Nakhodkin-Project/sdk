@@ -1,4 +1,4 @@
-module github.com/matvievsky/tg-bot-sdk
+module github.com/Nakhodkin-Project/sdk
 
 go 1.26.0
 
