@@ -37,7 +37,8 @@ bot := tgscreen.New(api, nil) // nil -> in-memory session store
 
 | Method | What it does |
 |---|---|
-| `Show(chatID, screen)` | Edits the chat's anchor message in place (text + keyboard in one request), or sends a new message and makes it the anchor if there isn't one yet. |
+| `Show(chatID, screen)` | Edits the chat's anchor message in place (text + keyboard in one request), or sends a new message and makes it the anchor if there isn't one yet. Self-healing: if the anchor can't be edited (the user deleted it, it's too old, etc.), `Show` drops it and sends a fresh anchor instead of dead-ending. |
+| `Resend(chatID, screen)` | Deletes the current anchor (best-effort) and sends `screen` as a new anchor at the bottom of the chat, leaving tracked page messages in place. Use when other messages were sent since the anchor was last shown. |
 | `Reset(chatID, screen)` | Clears tracked page messages and the old anchor, then shows `screen` as a brand-new anchor. Use this for "back to menu"-style transitions. |
 | `Track(chatID, msg)` | Remembers `msg` as part of the current screen, so `ClearPage`/`Reset` will delete it later. |
 | `ClearPage(chatID)` | Deletes every message tracked via `Track`. |

@@ -26,6 +26,7 @@ type Router struct {
 	conversations map[string]*Conversation
 	fallback      HandlerFunc
 	myChatMember  HandlerFunc
+	singleWindow  bool
 }
 
 // NewRouter returns an empty Router.
@@ -62,6 +63,22 @@ func (r *Router) Conversation(name string, c *Conversation) *Router {
 // matches.
 func (r *Router) Fallback(h HandlerFunc) *Router {
 	r.fallback = h
+	return r
+}
+
+// SingleWindow enables kiosk-style navigation, where each chat shows exactly
+// one anchor message. When set, Dispatch:
+//
+//   - adopts a callback's source message as the chat's anchor before handling
+//     it, so screens are always edited in place — even after a bot restart
+//     dropped the in-memory anchor;
+//   - deletes the user's incoming message once it has been handled, so typed
+//     commands and inputs don't linger above the anchor.
+//
+// Bots can delete incoming messages in private chats; delete failures (e.g.
+// missing permission in a group) are ignored.
+func (r *Router) SingleWindow() *Router {
+	r.singleWindow = true
 	return r
 }
 
@@ -109,6 +126,39 @@ func (r *Router) Start(ctx *Context, name string) error {
 // Dispatch routes u to the matching registration. Callback queries are
 // answered automatically before their handler runs.
 func (r *Router) Dispatch(b *Bot, u tgbotapi.Update) error {
+	if r.singleWindow {
+		// Adopt the message the user is interacting with as the anchor, so
+		// navigation edits it in place rather than sending a new window.
+		if cq := u.CallbackQuery; cq != nil && cq.Message != nil {
+			b.Sessions.Get(cq.Message.Chat.ID).SetAnchor(*cq.Message)
+		}
+
+		if m := u.Message; m != nil && m.Chat != nil {
+			// /start is an explicit restart: best-effort delete the current
+			// anchor and drop it from the session so the handler's first Show
+			// always sends a fresh message at the bottom of the chat. Without
+			// this, Show would try to edit the old anchor — which may have been
+			// deleted by the user — and either silently fail or place the new
+			// anchor in the wrong scroll position.
+			if m.Text == "/start" {
+				chatID := m.Chat.ID
+				session := b.Sessions.Get(chatID)
+				// Delete the promoted slot (e.g. an ad above the anchor) so a
+				// fresh /start never accumulates stale promoted messages.
+				if prom := session.Promoted(); prom.MessageID != 0 {
+					_, _ = b.Request(tgbotapi.NewDeleteMessage(chatID, prom.MessageID))
+					session.SetPromoted(tgbotapi.Message{})
+				}
+				if old := session.Anchor(); old.MessageID != 0 {
+					_, _ = b.Request(tgbotapi.NewDeleteMessage(chatID, old.MessageID))
+					session.SetAnchor(tgbotapi.Message{})
+				}
+			}
+			// Consume the user's own message once handled, leaving only the anchor.
+			defer func() { _ = b.Delete(m.Chat.ID, m.MessageID) }()
+		}
+	}
+
 	if u.MyChatMember != nil {
 		chatID := u.MyChatMember.Chat.ID
 		ctx := &Context{

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/Nakhodkin-Project/sdk/pkg/tgscreen"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // fakeCall records one request made against fakeTelegram.
@@ -27,6 +27,19 @@ type fakeTelegram struct {
 	mu     sync.Mutex
 	nextID int
 	calls  []fakeCall
+	fail   map[string]string // method -> Telegram error description to return
+}
+
+// failOn makes the next and all subsequent calls to method return a Telegram
+// API error (ok:false) with the given description, so tests can exercise
+// error-recovery paths.
+func (f *fakeTelegram) failOn(method, description string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.fail == nil {
+		f.fail = make(map[string]string)
+	}
+	f.fail[method] = description
 }
 
 func (f *fakeTelegram) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -37,7 +50,18 @@ func (f *fakeTelegram) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	f.mu.Lock()
 	f.calls = append(f.calls, fakeCall{Method: method, Form: req.PostForm})
+	desc, shouldFail := f.fail[method]
 	f.mu.Unlock()
+
+	if shouldFail {
+		body := fmt.Sprintf(`{"ok":false,"error_code":400,"description":%q}`, desc)
+		return &http.Response{
+			StatusCode: 200,
+			Status:     "200 OK",
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     make(http.Header),
+		}, nil
+	}
 
 	var result string
 	switch method {

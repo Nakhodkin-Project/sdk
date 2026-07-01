@@ -22,10 +22,11 @@ type ConvState struct {
 type Session struct {
 	mu sync.Mutex
 
-	anchor tgbotapi.Message
-	page   []tgbotapi.Message
-	conv   *ConvState
-	data   map[string]any
+	anchor   tgbotapi.Message
+	promoted tgbotapi.Message // message currently occupying the promoted slot (e.g. ad above anchor)
+	page     []tgbotapi.Message
+	conv     *ConvState
+	data     map[string]any
 }
 
 func newSession() *Session {
@@ -44,6 +45,21 @@ func (s *Session) SetAnchor(msg tgbotapi.Message) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.anchor = msg
+}
+
+// Promoted returns the message currently occupying the promoted slot (e.g. an
+// ad pinned above the anchor), or a zero Message if none has been set.
+func (s *Session) Promoted() tgbotapi.Message {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.promoted
+}
+
+// SetPromoted records msg as the current promoted slot message.
+func (s *Session) SetPromoted(msg tgbotapi.Message) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.promoted = msg
 }
 
 // Page returns the messages tracked as part of the current screen.

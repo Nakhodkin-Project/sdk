@@ -3,8 +3,8 @@ package tgscreen_test
 import (
 	"testing"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/Nakhodkin-Project/sdk/pkg/tgscreen"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // newConvCtx builds a Context for chatID, after Show-ing an initial anchor

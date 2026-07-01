@@ -3,8 +3,8 @@ package tgscreen_test
 import (
 	"testing"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/Nakhodkin-Project/sdk/pkg/tgscreen"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func TestRouterCommand(t *testing.T) {
@@ -79,6 +79,88 @@ func TestRouterFallback(t *testing.T) {
 	}
 	if !got {
 		t.Fatal("fallback handler was not called")
+	}
+}
+
+func TestSingleWindowDeletesUserMessage(t *testing.T) {
+	bot, fake := newTestBot()
+
+	router := tgscreen.NewRouter().SingleWindow().
+		Fallback(func(ctx *tgscreen.Context) error { return nil })
+
+	update := tgbotapi.Update{Message: &tgbotapi.Message{
+		MessageID: 7,
+		Chat:      &tgbotapi.Chat{ID: 1},
+		Text:      "/start",
+	}}
+	if err := router.Dispatch(bot, update); err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if n := fake.callsTo("deleteMessage"); n != 1 {
+		t.Fatalf("deleteMessage calls = %d, want 1", n)
+	}
+}
+
+func TestSingleWindowKeepsUserMessageWhenDisabled(t *testing.T) {
+	bot, fake := newTestBot()
+
+	router := tgscreen.NewRouter().
+		Fallback(func(ctx *tgscreen.Context) error { return nil })
+
+	update := tgbotapi.Update{Message: &tgbotapi.Message{
+		MessageID: 7,
+		Chat:      &tgbotapi.Chat{ID: 1},
+		Text:      "/start",
+	}}
+	if err := router.Dispatch(bot, update); err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if n := fake.callsTo("deleteMessage"); n != 0 {
+		t.Fatalf("deleteMessage calls = %d, want 0 without SingleWindow", n)
+	}
+}
+
+func TestSingleWindowAdoptsCallbackAnchor(t *testing.T) {
+	bot, _ := newTestBot()
+
+	router := tgscreen.NewRouter().SingleWindow().
+		Callback("ping", func(ctx *tgscreen.Context) error { return nil })
+
+	update := tgbotapi.Update{CallbackQuery: &tgbotapi.CallbackQuery{
+		ID:   "cb1",
+		Data: "ping",
+		Message: &tgbotapi.Message{
+			MessageID: 42,
+			Chat:      &tgbotapi.Chat{ID: 1},
+		},
+	}}
+	if err := router.Dispatch(bot, update); err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if got := bot.Sessions.Get(1).Anchor().MessageID; got != 42 {
+		t.Fatalf("adopted anchor MessageID = %d, want 42", got)
+	}
+}
+
+func TestSingleWindowDoesNotDeleteCallbackMessage(t *testing.T) {
+	bot, fake := newTestBot()
+
+	router := tgscreen.NewRouter().SingleWindow().
+		Callback("ping", func(ctx *tgscreen.Context) error { return nil })
+
+	update := tgbotapi.Update{CallbackQuery: &tgbotapi.CallbackQuery{
+		ID:   "cb1",
+		Data: "ping",
+		Message: &tgbotapi.Message{
+			MessageID: 42,
+			Chat:      &tgbotapi.Chat{ID: 1},
+		},
+	}}
+	if err := router.Dispatch(bot, update); err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if n := fake.callsTo("deleteMessage"); n != 0 {
+		t.Fatalf("deleteMessage calls = %d, want 0 (anchor must survive)", n)
 	}
 }
 
